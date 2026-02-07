@@ -1,0 +1,20 @@
+# Generierte 3D-Dateien (bei Bedarf manuell hinzufügen mit git add -f)
+*.stl
+*.3mf
+*.gcode
+
+# Temporäre OpenSCAD-Dateien
+*.deps
+*.csg
+
+# Fusion 360 Backups
+*.f3z
+*.f3d
+
+# OS-Dateien
+Thumbs.db
+.DS_Store
+
+# IDE
+*.swp
+*~
