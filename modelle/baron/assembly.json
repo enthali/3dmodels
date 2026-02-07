@@ -1,0 +1,13 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "fuselage_width": "80",
+            "wing_offset_x": "150",
+            "wing_offset_z": "70",
+            "wing_x_rotate": "90",
+            "wing_y_rotate": "0",
+            "wing_z_rotate": "0"
+        }
+    }
+}
