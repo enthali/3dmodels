@@ -100,6 +100,9 @@ module gehaeuse(w, h, d, wall) { ... }
 
 ## Projektstruktur
 
+Die Struktur ist **modell-zentriert** – jedes Projekt bekommt einen eigenen Ordner.
+Maschinenspezifische Unterordner (z.B. `fdm/`, `resin/`, `stepcraft/`) werden nur bei Bedarf angelegt.
+
 ```
 3dmodels/
 ├── .github/
@@ -108,27 +111,19 @@ module gehaeuse(w, h, d, wall) { ... }
 │   └── mcp.json                    ← MCP-Server-Konfiguration
 ├── lib/                            ← Gemeinsame OpenSCAD-Bibliotheken
 │   ├── hardware.scad               ← Schrauben, Muttern, Inserts
+│   ├── airfoil.scad                ← Tragflächenprofile (NACA etc.)
+│   ├── connectors.scad             ← Steckverbindungen für mehrteilige Drucke
 │   ├── rounded.scad                ← Abgerundete Ecken/Kanten
 │   └── tolerances.scad             ← Druckertoleranzen & Passungen
-├── stepcraft/                      ← Projekte für CNC-Fräse
-│   └── <projektname>/
-│       ├── <name>.scad
-│       ├── <name>.stl
-│       └── README.md
-├── fdm/                            ← FDM-Druck (Adventurer 5M)
-│   └── <projektname>/
-│       ├── <name>.scad
-│       ├── <name>.stl
-│       └── README.md
-├── resin/                          ← Resin-Druck (Mars / Saturn)
-│   └── <projektname>/
-│       ├── <name>.scad
-│       ├── <name>.stl
-│       └── README.md
-└── shared/                         ← Maschinenübergreifende Projekte
-    └── <projektname>/
-        ├── <name>.scad
-        └── README.md
+├── modelle/
+│   └── <projektname>/              ← ein Modell-Projekt
+│       ├── <name>.scad             ← Hauptdatei (parametrisch)
+│       ├── <teil>.scad             ← Weitere Teile / Module
+│       ├── README.md               ← Beschreibung, Maße, Zielmaschine
+│       ├── fdm/                    ← FDM-spezifische Exports (optional)
+│       ├── resin/                  ← Resin-spezifische Exports (optional)
+│       └── stepcraft/              ← CNC-spezifische Exports (optional)
+└── .gitignore
 ```
 
 ---
