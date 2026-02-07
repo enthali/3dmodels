@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "mypc": {
+      "type": "sse",
+      "url": "https://127-0-0-1.local.aurafriday.com:31173/sse",
+      "headers": {
+        "Authorization": "Bearer 9824541e-f1df-4edd-92d9-5daafe5841bd",
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}
