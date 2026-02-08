@@ -1,15 +1,17 @@
-// elliptic_wing.scad – Experimenteller elliptischer Halbflügel (DC-3 Style)
+// elliptic_wing.scad – Elliptischer Halbflügel (DC-3 Style)
 // Elliptische Tiefenverteilung: c(y) = c_root * sqrt(1 - (y/b)²)
-// Holm bei 30% chord bleibt auf gerader Linie
+// 30% chord auf gerader Linie (Pfeilungsreferenz)
+// Verstärkung: 4× Filament-Nuten auf Profiloberfläche (statt CF-Holm)
 
 use <../../lib/airfoil.scad>
+use <../../lib/grooves.scad>
 
 // --- Profil ---
 wing_naca       = [0.04, 0.4, 0.15];  // NACA 4415
 chord_root      = 180;                 // [mm] Wurzeltiefe
 half_span       = 600;                 // [mm] Halbspannweite (60cm)
-step            = $preview ? 20 : 5;   // [mm] Slice-Auflösung
-tip_min         = 15;                  // [mm] minimale Profiltiefe an Spitze
+step            = $preview ? 5 : 0.4; // [mm] Slice = Layer-Höhe (0.2mm)
+tip_min         = 5;                  // [mm] minimale Profiltiefe an Spitze
 
 // --- Wandstärken ---
 wall            = 0.4;                // [mm] Hüllenwandstärke (1× Düse)
@@ -19,16 +21,21 @@ root_rib_height = 0.4;                // [mm] Wurzelrippe
 // --- Rippen ---
 rib_angle       = 45;                 // [°] Winkel der Kreuzrippen
 rib_spacing     = 40;                 // [mm] Abstand zwischen Rippen
+rib_inset_root  = 5;                  // [mm] Erleichterungsloch-Abstand zur Hülle (an Wurzel)
+rib_inset_min   = 2;                  // [mm] Minimum-Rand (darunter wird Rippe massiv)
+rib_inset_r     = 3;                  // [mm] Verrundung der Löcher
+steg_w_root     = 7;                  // [mm] Stegbreite an der Wurzel (skaliert mit Chord)
+min_hole_chord  = 30;                 // [mm] Chord unter dem keine Löcher mehr
 
 // --- V-Form ---
-v_angle         = 3.0;                // [°] V-Form pro Seite
+v_angle         = 0;                  // [°] V-Form deaktiviert (Keil-Lösung später)
 
-// --- Holm ---
-spar_d          = 6;                  // [mm] CF-Rohr Durchmesser
-spar_tol        = 0.2;               // [mm] Toleranz
-spar_pos        = 0.30;              // 30% chord
-spar_y          = 16.3;              // [mm] Holm Y über Sehne (4mm unter Oberkante)
-spar_len        = 310;               // [mm] Holm reicht bis ~50% Spannweite (V-Form-Limit)
+// --- Pfeilung ---
+sweep_ref       = 0.30;              // 30% chord – Referenzlinie für Pfeilung
+
+// Filament-Nuten: Werte aus lib/grooves.scad hier lokal (use importiert keine Variablen!)
+groove_inset     = 40;                // [mm] Abstand Nut von Nase/Endleiste
+groove_min_chord = 2 * groove_inset;  // [mm] Nuten nur bei chord ≥ 80mm
 
 $fn = $preview ? 24 : 64;
 
@@ -36,8 +43,8 @@ $fn = $preview ? 24 : 64;
 function elliptic_chord(y) =
     max(tip_min, chord_root * sqrt(1 - pow(min(y, half_span) / half_span, 2)));
 
-// Leading-Edge Versatz: 30% chord bleibt auf gerader Linie (für geraden Holm)
-function le_offset(y) = (chord_root - elliptic_chord(y)) * spar_pos;
+// Leading-Edge Versatz: 30% aller Chords auf einer senkrechten Linie
+function le_offset(y) = sweep_ref * (chord_root - elliptic_chord(y));
 
 // V-Form Versatz: Y steigt mit Spannweite
 function v_offset(y) = tan(v_angle) * y;
@@ -47,42 +54,86 @@ n_steps         = floor(half_span / step);
 rib_offset_z    = tan(rib_angle) * chord_root;
 rib_length      = chord_root * 2 / cos(rib_angle);
 rib_count       = floor((half_span + rib_offset_z) / rib_spacing);
-spar_x          = spar_pos * chord_root;  // Holm X-Position (konstant)
 
 // === Module ===
 
-// Elliptischer Vollkörper (für Intersection mit Rippen)
+// Erleichterungsloch: offset(r=+r) offset(r=-r) → abgerundete Ecken
+// intersection clippt zurück auf Steg-Grenzen (sonst frisst offset den Steg)
+module _hole_2d(naca, chord, x_start, x_end, inset) {
+    intersection() {
+        translate([x_start, -30])
+            square([x_end - x_start, 60]);
+        offset(r = rib_inset_r) offset(r = -rib_inset_r)
+            intersection() {
+                offset(r = -inset)
+                    airfoil_2d(naca, chord);
+                translate([x_start, -30])
+                    square([x_end - x_start, 60]);
+            }
+    }
+}
+
+// 2D-Erleichterungslöcher für eine Rippe bei gegebener Chord
+// chord ≥ 80mm: 3 Löcher (Nase | Steg1 @ 40mm | Mitte | Steg2 @ chord-40mm | Heck)
+// chord < 80mm: 1 Loch (Nase | Steg @ 50% | Heck) — Steg unter den Grooves
+// chord < min_hole_chord: nichts (massiv)
+module rib_hollow_2d(naca, chord) {
+    steg_w = steg_w_root * chord / chord_root;
+    nose_start = 13 * chord / chord_root;  // skaliert mit Chord
+    inset = max(rib_inset_min, rib_inset_root * chord / chord_root);
+
+    if (chord >= groove_min_chord) {
+        // 3 Löcher: Stege bei groove_inset und chord-groove_inset
+        s1 = groove_inset;
+        s2 = chord - groove_inset;
+        // Vorderes Loch
+        _hole_2d(naca, chord, nose_start, s1 - steg_w/2, inset);
+        // Mittleres Loch
+        _hole_2d(naca, chord, s1 + steg_w/2, s2 - steg_w/2, inset);
+        // Hinteres Loch
+        _hole_2d(naca, chord, s2 + steg_w/2, chord - nose_start, inset);
+    } else if (chord >= min_hole_chord) {
+        // 1 Loch: Steg bei 50%
+        s_mid = chord * 0.5;
+        _hole_2d(naca, chord, nose_start, s_mid - steg_w/2, inset);
+        _hole_2d(naca, chord, s_mid + steg_w/2, chord - nose_start, inset);
+    }
+    // else: massiv, keine Löcher
+}
+
+// Elliptischer Hollow-Körper (zum Subtrahieren von Kreuzrippen)
+module elliptic_hollow() {
+    for (i = [0 : n_steps - 1]) {
+        y = i * step;
+        c1 = elliptic_chord(y);
+        if (c1 >= min_hole_chord)
+            translate([le_offset(y), v_offset(y), y])
+                linear_extrude(height = step)
+                    rib_hollow_2d(wing_naca, c1);
+    }
+}
+
+// Elliptischer Vollkörper (mit Filament-Nuten im Profil)
 module elliptic_solid() {
     for (i = [0 : n_steps - 1]) {
         y = i * step;
         c1 = elliptic_chord(y);
-        c2 = elliptic_chord(y + step);
-        hull() {
-            translate([le_offset(y), v_offset(y), y])
-                linear_extrude(height = 0.01)
-                    airfoil_2d(wing_naca, c1);
-            translate([le_offset(y + step), v_offset(y + step), y + step])
-                linear_extrude(height = 0.01)
-                    airfoil_2d(wing_naca, c2);
-        }
+        // Ein translate: LE-Offset + V-Form + Spannweite
+        translate([le_offset(y), v_offset(y), y])
+            linear_extrude(height = step)
+                airfoil_grooved_2d(wing_naca, c1);
     }
 }
 
-// Elliptischer Innenkörper (für Hüllen-Differenz)
+// Elliptischer Innenkörper (grooved + offset → gleichmäßige Wand um Grooves)
 module elliptic_inner() {
     for (i = [0 : n_steps - 1]) {
         y = i * step;
         c1 = elliptic_chord(y);
-        c2 = elliptic_chord(y + step);
-        if (c1 > wall * 3 && c2 > wall * 3)  // nur wenn Profil dick genug
-        hull() {
+        if (c1 > wall * 3)
             translate([le_offset(y), v_offset(y), y])
-                linear_extrude(height = 0.01)
-                    offset(r = -wall) airfoil_2d(wing_naca, c1);
-            translate([le_offset(y + step), v_offset(y + step), y + step])
-                linear_extrude(height = 0.01)
-                    offset(r = -wall) airfoil_2d(wing_naca, c2);
-        }
+                linear_extrude(height = step)
+                    offset(r = -wall) airfoil_grooved_2d(wing_naca, c1);
     }
 }
 
@@ -102,39 +153,33 @@ module half_wing_segment(z_start = 0, z_end = half_span) {
                 // Wurzelrippe (nur wenn Segment bei Z=0 beginnt)
                 if (z_start == 0)
                     linear_extrude(height = root_rib_height)
-                        difference() {
-                            airfoil_2d(wing_naca, chord_root);
-                            translate([spar_x, spar_y]) circle(d = spar_d + spar_tol);
+                        airfoil_grooved_2d(wing_naca, chord_root);
+                // Kreuzrippen (konform zur Ellipse, mit Erleichterungslöchern)
+                difference() {
+                    intersection() {
+                        elliptic_solid();
+                        union() {
+                            for (i = [0 : rib_count])
+                                translate([0, -30, i * rib_spacing - rib_offset_z])
+                                    rotate([0, -rib_angle, 0])
+                                        cube([rib_length, 60, rib_wall]);
+                            for (i = [0 : rib_count + 1])
+                                translate([0, -30, i * rib_spacing - rib_offset_z + rib_spacing/2])
+                                    rotate([0, rib_angle, 0])
+                                        cube([rib_length, 60, rib_wall]);
                         }
-
-                // Kreuzrippen (konform zur Ellipse)
-                intersection() {
-                    elliptic_solid();
-                    union() {
-                        for (i = [0 : rib_count])
-                            translate([0, -30, i * rib_spacing - rib_offset_z])
-                                rotate([0, -rib_angle, 0])
-                                    cube([rib_length, 60, rib_wall]);
-                        for (i = [0 : rib_count + 1])
-                            translate([0, -30, i * rib_spacing - rib_offset_z + rib_spacing/2])
-                                rotate([0, rib_angle, 0])
-                                    cube([rib_length, 60, rib_wall]);
                     }
+                    elliptic_hollow();
                 }
-
-                // Hülle
+                // Hülle (Nuten im Profil, Inner ohne Nuten → Nut bleibt offen)
                 difference() {
                     elliptic_solid();
                     elliptic_inner();
                 }
             }
-            // Holm-Kanal (nur wenn im Segment-Bereich)
-            if (z_start < spar_len)
-                translate([spar_x, spar_y, -1])
-                    cylinder(d = spar_d + spar_tol, h = spar_len + 2);
         }
     }
 }
 
-// --- Vorschau: ganzer Halbflügel ---
+// --- Vorschau ---
 half_wing_segment(0, half_span);
