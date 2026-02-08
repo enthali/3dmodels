@@ -4,7 +4,6 @@
         "New set 1": {
             "chord": "250",
             "rib_angle": "23",
-            "rib_height": "0.69999999999999996",
             "rib_spacing": "25",
             "wing_naca": "[0.04, 0.4, 0.15]"
         }
