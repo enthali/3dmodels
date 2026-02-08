@@ -15,7 +15,7 @@ root_rib_height = 0.4;                // [mm] Wurzelrippe (2 Layer)
 
 // --- Rippen ---
 rib_angle       = 45;                 // [°] Winkel der gekreuzten Rippen
-rib_spacing     = 30;                 // [mm] Abstand zwischen Rippen
+rib_spacing     = 40;                 // [mm] Abstand zwischen Rippen
 rib_inset       = 4;                  // [mm] Rippen-Abstand zur Hülle
 rib_inset_r     = 3;                  // [mm] Verrundung der Erleichterungslöcher
 
@@ -23,11 +23,11 @@ rib_inset_r     = 3;                  // [mm] Verrundung der Erleichterungslöch
 spar_d          = 6;                  // [mm] Holm-Durchmesser
 spar_tol        = 0.2;                // [mm] Toleranz für Holmbohrung
 spar_pos        = 0.30;               // [%] Position (30% chord)
-spar_box_w      = 16;                 // [mm] Holmsteg-Breite
+spar_box_w      = 12;                 // [mm] Holmsteg-Breite
 
 // --- Zweiter Steg ---
 steg2_pos       = 0.60;               // [%] Position (60% chord)
-steg2_w         = 12;                  // [mm] Steg-Breite
+steg2_w         = 8;                  // [mm] Steg-Breite
 
 $fn = $preview ? 32 : 128;
 
@@ -97,9 +97,9 @@ intersection() {
                 rotate([0, -rib_angle, 0])
                     cube([rib_length, 40, rib_wall]);
 
-        // Rippen Richtung 2
+        // Rippen Richtung 2 (um halben Rippenabstand versetzt an der Nase)
         for (i = [0 : rib_count])
-            translate([0, -10, i * rib_spacing])
+            translate([0, -10, i * rib_spacing - rib_offset + rib_spacing/2])
                 rotate([0, rib_angle, 0])
                     cube([rib_length, 40, rib_wall]);
     }
@@ -115,3 +115,5 @@ linear_extrude(height = seg_height)
         offset(r = -wall)
             airfoil_2d(wing_naca, chord);
     }
+    
+ 
