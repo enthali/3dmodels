@@ -16,19 +16,22 @@ tip_min         = 5;                  // [mm] minimale Profiltiefe an Spitze
 // --- Wandstärken ---
 wall            = 0.4;                // [mm] Hüllenwandstärke (1× Düse)
 rib_wall        = 0.8;                // [mm] Rippenstärke (2× Düse)
-root_rib_height = 0.4;                // [mm] Wurzelrippe
 
 // --- Rippen ---
 rib_angle       = 45;                 // [°] Winkel der Kreuzrippen
 rib_spacing     = 40;                 // [mm] Abstand zwischen Rippen
 rib_inset_root  = 5;                  // [mm] Erleichterungsloch-Abstand zur Hülle (an Wurzel)
 rib_inset_min   = 2;                  // [mm] Minimum-Rand (darunter wird Rippe massiv)
-rib_inset_r     = 3;                  // [mm] Verrundung der Löcher
+rib_inset_r     = 1;                  // [mm] Verrundung der Löcher
 steg_w_root     = 7;                  // [mm] Stegbreite an der Wurzel (skaliert mit Chord)
 min_hole_chord  = 30;                 // [mm] Chord unter dem keine Löcher mehr
 
 // --- V-Form ---
 v_angle         = 0;                  // [°] V-Form deaktiviert (Keil-Lösung später)
+
+// --- Schränkung (Washout) ---
+washout         = 3;                  // [°] max. Schränkung am Tip (Nase runter)
+washout_start   = 0;                // [mm] Beginn der Schränkung (ab Segment 2)
 
 // --- Pfeilung ---
 sweep_ref       = 0.30;              // 30% chord – Referenzlinie für Pfeilung
@@ -48,6 +51,11 @@ function le_offset(y) = sweep_ref * (chord_root - elliptic_chord(y));
 
 // V-Form Versatz: Y steigt mit Spannweite
 function v_offset(y) = tan(v_angle) * y;
+
+// Schränkung: linear von 0° (washout_start) bis +washout° (Tip), Nase runter
+function twist(y) =
+    y <= washout_start ? 0 :
+    washout * (y - washout_start) / (half_span - washout_start);
 
 // === Berechnete Werte ===
 n_steps         = floor(half_span / step);
@@ -109,7 +117,10 @@ module elliptic_hollow() {
         if (c1 >= min_hole_chord)
             translate([le_offset(y), v_offset(y), y])
                 linear_extrude(height = step)
-                    rib_hollow_2d(wing_naca, c1);
+                    translate([sweep_ref * c1, 0])
+                        rotate([0, 0, twist(y)])
+                            translate([-sweep_ref * c1, 0])
+                                rib_hollow_2d(wing_naca, c1);
     }
 }
 
@@ -118,10 +129,13 @@ module elliptic_solid() {
     for (i = [0 : n_steps - 1]) {
         y = i * step;
         c1 = elliptic_chord(y);
-        // Ein translate: LE-Offset + V-Form + Spannweite
+        // LE-Offset + V-Form + Spannweite, Profil um 30% gedreht (Washout)
         translate([le_offset(y), v_offset(y), y])
             linear_extrude(height = step)
-                airfoil_grooved_2d(wing_naca, c1);
+                translate([sweep_ref * c1, 0])
+                    rotate([0, 0, twist(y)])
+                        translate([-sweep_ref * c1, 0])
+                            airfoil_grooved_2d(wing_naca, c1);
     }
 }
 
@@ -133,7 +147,10 @@ module elliptic_inner() {
         if (c1 > wall * 3)
             translate([le_offset(y), v_offset(y), y])
                 linear_extrude(height = step)
-                    offset(r = -wall) airfoil_grooved_2d(wing_naca, c1);
+                    translate([sweep_ref * c1, 0])
+                        rotate([0, 0, twist(y)])
+                            translate([-sweep_ref * c1, 0])
+                                offset(r = -wall) airfoil_grooved_2d(wing_naca, c1);
     }
 }
 
@@ -150,10 +167,6 @@ module half_wing_segment(z_start = 0, z_end = half_span) {
         // Ganzer Halbflügel
         difference() {
             union() {
-                // Wurzelrippe (nur wenn Segment bei Z=0 beginnt)
-                if (z_start == 0)
-                    linear_extrude(height = root_rib_height)
-                        airfoil_grooved_2d(wing_naca, chord_root);
                 // Kreuzrippen (konform zur Ellipse, mit Erleichterungslöchern)
                 difference() {
                     intersection() {

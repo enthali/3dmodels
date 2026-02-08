@@ -3,5 +3,7 @@
 
 use <elliptic_wing.scad>
 
-mirror([0, 0, 1])
-    half_wing_segment(0, 200);
+rotate([180,0,0])
+    mirror([0, 0, 1])
+        half_wing_segment(0, 200);
+        //elliptic_hollow();
