@@ -36,6 +36,24 @@ washout_start   = 0;                // [mm] Beginn der Schränkung (ab Segment 2
 // --- Pfeilung ---
 sweep_ref       = 0.30;              // 30% chord – Referenzlinie für Pfeilung
 
+// --- Querruder (Aileron) ---
+aileron_y1_pct  = 0.55;              // Beginn Querruder (% Halbspannweite)
+aileron_y2_pct  = 0.917;             // Ende Querruder (% Halbspannweite)
+aileron_hinge_pct = 0.79;            // Scharnier-Position an den Enden (% chord)
+// Gerade Scharnierlinie: 79% an Enden → ~75% in der Mitte
+aileron_gap     = 0.8;               // [mm] Spalt für Ruderbewegung
+
+// Abgeleitete Werte
+aileron_y1      = aileron_y1_pct * half_span;
+aileron_y2      = aileron_y2_pct * half_span;
+aileron_hinge_x1 = le_offset(aileron_y1) + aileron_hinge_pct * elliptic_chord(aileron_y1);
+aileron_hinge_x2 = le_offset(aileron_y2) + aileron_hinge_pct * elliptic_chord(aileron_y2);
+
+// Scharnier-X als Funktion der Spannweite (gerade Linie)
+function hinge_x(y) =
+    aileron_hinge_x1 + (aileron_hinge_x2 - aileron_hinge_x1)
+                      * (y - aileron_y1) / (aileron_y2 - aileron_y1);
+
 // Filament-Nuten: Werte aus lib/grooves.scad hier lokal (use importiert keine Variablen!)
 groove_inset     = 40;                // [mm] Abstand Nut von Nase/Endleiste
 groove_min_chord = 2 * groove_inset;  // [mm] Nuten nur bei chord ≥ 80mm
