@@ -6,8 +6,8 @@
 use <airfoil.scad>
 
 // === Parameter (können vom Hauptprojekt überschrieben werden) ===
-groove_d        = 1.85;   // [mm] Nutbreite / Kreisdurchmesser (1.75mm Filament + 0.1mm Toleranz)
-groove_sink     = 1.5;    // [mm] Gesamttiefe der U-Nut (Filament ∅1.75 → 0.25mm steht raus)
+groove_d        = 1.75;   // [mm] Nutbreite = Filament-∅ (H-Passung, Filament meist <1.75)
+groove_sink     = 1.80;   // [mm] Gesamttiefe der U-Nut (Filament versenkt, kaum Überstand)
 groove_inset    = 40;     // [mm] Abstand von Nase bzw. Endleiste
 groove_min_chord = 2 * groove_inset;  // Nuten nur bei chord ≥ 2×inset
 
