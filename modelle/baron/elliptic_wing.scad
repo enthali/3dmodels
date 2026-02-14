@@ -38,10 +38,12 @@ sweep_ref       = 0.30;              // 30% chord – Referenzlinie für Pfeilun
 
 // --- Querruder (Aileron) ---
 aileron_y1_pct  = 0.55;              // Beginn Querruder (% Halbspannweite)
-aileron_y2_pct  = 0.917;             // Ende Querruder (% Halbspannweite)
+aileron_y2_pct  = 0.91;             // Ende Querruder (% Halbspannweite)
 aileron_hinge_pct = 0.79;            // Scharnier-Position an den Enden (% chord)
 // Gerade Scharnierlinie: 79% an Enden → ~75% in der Mitte
 aileron_gap     = 0.8;               // [mm] Spalt für Ruderbewegung
+aileron_closure_w = 0.4;             // [mm] Abschlussrippe pro Seite (2 Druckschichten)
+aileron_bevel   = 30;                // [°] Keilwinkel an der Scharnierkante
 
 // Abgeleitete Werte
 aileron_y1      = aileron_y1_pct * half_span;
@@ -53,6 +55,13 @@ aileron_hinge_x2 = le_offset(aileron_y2) + aileron_hinge_pct * elliptic_chord(ai
 function hinge_x(y) =
     aileron_hinge_x1 + (aileron_hinge_x2 - aileron_hinge_x1)
                       * (y - aileron_y1) / (aileron_y2 - aileron_y1);
+
+// Segment-Grenzen [mm] (Index 0–4: Wurzel → Spitze)
+// Seg 1: 0–200        (Wurzel)
+// Seg 2: 200–y1+gap  (Innen, Verschlusswand bleibt in Seg 3)
+// Seg 3: y1+gap–y2+gap/2  (Querruder-Zone, Wand am Anfang)
+// Seg 4: y2+gap/2–half_span (Flügelspitze, Verschlusswand ist in Seg 4)
+function seg_boundary(i) = [0, 180, aileron_y1 - aileron_gap, aileron_y2 + aileron_gap/2, half_span][i];
 
 // Filament-Nuten: Werte aus lib/grooves.scad hier lokal (use importiert keine Variablen!)
 groove_inset     = 40;                // [mm] Abstand Nut von Nase/Endleiste
@@ -172,42 +181,135 @@ module elliptic_inner() {
     }
 }
 
-// === Haupt-Modul: Halbflügel-Segment ===
+// === Querruder-Zone (Legacy: vertikaler Schnitt) ===
+// Parametrisches Volumen hinter der Scharnierlinie.
+// → Ersetzt durch aileron_wedge() mit Keilschnitt.
+// clearance > 0 → Zone wächst (Flügel-Subtraktion: Spalt auf Flügelseite)
+// clearance < 0 → Zone schrumpft (Querruder-Intersection: Spalt auf Ruderseite)
+// Gesamtspalt = 2 × |clearance|
+module aileron_zone(clearance = 0) {
+    z1 = aileron_y1 - clearance;
+    z2 = aileron_y2 + clearance;
+    hx1 = aileron_hinge_x1 - clearance;
+    hx2 = aileron_hinge_x2 - clearance;
+    // Keilförmiges Volumen: Scharnierlinie → weit hinter Endleiste
+    hull() {
+        translate([hx1, -50, z1])
+            cube([chord_root, 100, 0.01]);
+        translate([hx2, -50, z2])
+            cube([chord_root, 100, 0.01]);
+    }
+}
+
+// Einzelne Keil-Scheibe (intern, für aileron_wedge)
+module _wedge_slice(y, clearance, h) {
+    c = elliptic_chord(y);
+    hx_local = hinge_x(y) - le_offset(y) - clearance;
+    x_norm = max(0.01, min(0.99, hx_local / c));
+    m = wing_naca[0]; p = wing_naca[1]; tt = wing_naca[2];
+    yc = naca_camber(m, p, x_norm);
+    yt = naca_half_thickness(tt, x_norm);
+    th = atan2(naca_camber_gradient(m, p, x_norm), 1);
+    hinge_ux = c * (x_norm - yt * sin(th));
+    hinge_uy = c * (yc + yt * cos(th));
+    big = chord_root * 2;
+    translate([le_offset(y), v_offset(y), y])
+        linear_extrude(height = h)
+            translate([sweep_ref * c, 0])
+                rotate([0, 0, twist(y)])
+                    translate([-sweep_ref * c, 0])
+                        translate([hinge_ux, hinge_uy])
+                            rotate([0, 0, aileron_bevel])
+                                translate([0, -big])
+                                    square([big, 2 * big]);
+}
+
+// === Keilförmige Querruder-Zone (Bevel) ===
+// Ersetzt aileron_zone: Schnittlinie an der Scharnier-Oberfläche ist um
+// aileron_bevel Grad vom Lot verkippt → Freiraum für Ruderausschlag.
+// Der Drehpunkt liegt auf der Profiloberseite am Scharnierpunkt.
+// clearance > 0 → Zone wächst (Flügel-Subtraktion)
+// clearance < 0 → Zone schrumpft (Querruder-Intersection)
+module aileron_wedge(clearance = 0) {
+    z1 = aileron_y1 - clearance;
+    z2 = aileron_y2 + clearance;
+    wedge_n = max(2, ceil((z2 - z1) / 10));
+    wedge_step = (z2 - z1) / wedge_n;
+    for (i = [0 : wedge_n - 1])
+        _wedge_slice(z1 + i * wedge_step, clearance, wedge_step);
+}
+
+// Abschlussrippen an den Querruder-Grenzen
+// Massiver Block = elliptic_solid ∩ aileron_zone(gap)
+// half_wing() subtrahiert aileron_zone(gap/2) → 0.4mm Wände bleiben überall stehen
+module aileron_closure_ribs() {
+    intersection() {
+        elliptic_solid();
+        aileron_zone(aileron_gap);
+    }
+}
+
+// === Ganzer Halbflügel – Struktur (Rippen + Hülle + Abschlussrippen) ===
+// Noch OHNE Querruder-Ausschnitt
+module half_wing_struct() {
+    union() {
+        // Kreuzrippen (konform zur Ellipse, mit Erleichterungslöchern)
+        difference() {
+            intersection() {
+                elliptic_solid();
+                union() {
+                    for (i = [0 : rib_count])
+                        translate([0, -30, i * rib_spacing - rib_offset_z])
+                            rotate([0, -rib_angle, 0])
+                                cube([rib_length, 60, rib_wall]);
+                    for (i = [0 : rib_count + 1])
+                        translate([0, -30, i * rib_spacing - rib_offset_z + rib_spacing/2])
+                            rotate([0, rib_angle, 0])
+                                cube([rib_length, 60, rib_wall]);
+                }
+            }
+            elliptic_hollow();
+        }
+        // Hülle (Nuten im Profil, Inner ohne Nuten → Nut bleibt offen)
+        difference() {
+            elliptic_solid();
+            elliptic_inner();
+        }
+        // Abschlussrippen an Querruder-Grenzen
+        aileron_closure_ribs();
+    }
+}
+
+// === Ganzer Halbflügel – MIT Querruder-Ausschnitt ===
+// Aileron-Spalt ist eingebaut → alle Segmente bekommen ihn automatisch
+module half_wing() {
+    difference() {
+        half_wing_struct();
+        aileron_zone(aileron_gap / 2);
+    }
+}
+
+// === Segment aus dem Halbflügel schneiden ===
 // z_start/z_end: Spannweiten-Bereich [mm] (0 = Wurzel)
-// Das Segment wird auf Z=0 verschoben (druckfertig)
+// Auf Z=0 verschoben (druckfertig, Druckrichtung = Spannweite)
 module half_wing_segment(z_start = 0, z_end = half_span) {
     translate([0, 0, -z_start])
     intersection() {
-        // Schneidquader für das Segment
         translate([-50, -50, z_start])
             cube([chord_root + 100, 100, z_end - z_start]);
+        half_wing();
+    }
+}
 
-        // Ganzer Halbflügel
-        difference() {
-            union() {
-                // Kreuzrippen (konform zur Ellipse, mit Erleichterungslöchern)
-                difference() {
-                    intersection() {
-                        elliptic_solid();
-                        union() {
-                            for (i = [0 : rib_count])
-                                translate([0, -30, i * rib_spacing - rib_offset_z])
-                                    rotate([0, -rib_angle, 0])
-                                        cube([rib_length, 60, rib_wall]);
-                            for (i = [0 : rib_count + 1])
-                                translate([0, -30, i * rib_spacing - rib_offset_z + rib_spacing/2])
-                                    rotate([0, rib_angle, 0])
-                                        cube([rib_length, 60, rib_wall]);
-                        }
-                    }
-                    elliptic_hollow();
-                }
-                // Hülle (Nuten im Profil, Inner ohne Nuten → Nut bleibt offen)
-                difference() {
-                    elliptic_solid();
-                    elliptic_inner();
-                }
-            }
+// === Querruder-Teil (separater Druck) ===
+module aileron_part() {
+    translate([0, 0, -aileron_y1])
+    intersection() {
+        translate([-50, -50, aileron_y1])
+            cube([chord_root + 100, 100, aileron_y2 - aileron_y1]);
+        intersection() {
+            half_wing_struct();
+            aileron_zone(-aileron_gap / 2);
         }
     }
 }

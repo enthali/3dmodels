@@ -1,6 +1,6 @@
-// seg3_left.scad – Äußeres Segment (Tip), linker Halbflügel
-// Spannweite 400–600mm, ohne Holm (CF-Rohr endet bei 310mm)
+// wing_seg3_left.scad – Querruder-Zone, linker Halbflügel (Flügel ohne Ruder)
+// Spannweite 330–550 mm (Querruder-Ausschnitt ist in half_wing() eingebaut)
 
 use <../elliptic_wing.scad>
 
-half_wing_segment(400, 600);
+half_wing_segment(seg_boundary(2), seg_boundary(3));

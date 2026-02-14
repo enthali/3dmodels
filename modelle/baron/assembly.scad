@@ -8,6 +8,7 @@
 
 use <elliptic_wing.scad>
 
+
 // ============================================================
 // PARAMETER
 // ============================================================
@@ -18,10 +19,10 @@ fuselage_length = 800;   // [mm] Rumpflänge
 
 // --- Flügel-Positionierung ---
 wing_offset_x   = 150;   // [mm] Flügelvorderkante ab Rumpfnase
-wing_offset_z   = 70;    // [mm] Flügelhöhe (Schulterdecker)
+wing_offset_z   = 120;    // [mm] Flügelhöhe (Schulterdecker)
 
-// --- Segment-Grenzen [mm] ---
-seg_boundaries  = [0, 200, 400, 600];
+// --- Segment-Grenzen [mm] (aus elliptic_wing.scad) ---
+// seg_boundary(0..4): 0, 200, 330, 550, 600
 
 // --- Explosionsansicht ---
 explode = 0;             // [mm] Abstand zwischen Segmenten (0 = zusammen)
@@ -30,18 +31,35 @@ explode = 0;             // [mm] Abstand zwischen Segmenten (0 = zusammen)
 // BAUGRUPPEN
 // ============================================================
 
-// Halbflügel aus Segmenten zusammensetzen
+// Halbflügel aus Segmenten + Querruder zusammensetzen
 // elliptic_wing.scad: Profil in XY, Spannweite in Z
 // rotate([90,0,0]): Z → -Y, Y → Z  (Spannweite nach links, Oberseite nach oben)
 module place_half_wing() {
-    n_seg = len(seg_boundaries) - 1;
-    for (i = [0 : n_seg - 1]) {
-        s = seg_boundaries[i];
-        e = seg_boundaries[i + 1];
-        translate([0, -(s + i * explode), 0])
-            rotate([90, 0, 0])
-                half_wing_segment(s, e);
-    }
+    // Segment 1: Wurzel (0–200 mm)
+    translate([0, -(seg_boundary(0) + 0 * explode), 0])
+        rotate([90, 0, 0])
+            half_wing_segment(seg_boundary(0), seg_boundary(1));
+
+    // Segment 2: Innen bis Querruder (200–330 mm)
+    translate([0, -(seg_boundary(1) + 1 * explode), 0])
+        rotate([90, 0, 0])
+            half_wing_segment(seg_boundary(1), seg_boundary(2));
+
+    // Segment 3: Querruder-Zone – Flügel mit Ausschnitt (330–550 mm)
+    translate([0, -(seg_boundary(2) + 2 * explode), 0])
+        rotate([90, 0, 0])
+            half_wing_segment(seg_boundary(2), seg_boundary(3));
+
+    // Querruder (separates Teil)
+    color("Orange", 0.9)
+    translate([0, -(seg_boundary(2) + 2 * explode), 0])
+        rotate([90, 0, 0])
+            aileron_part();
+
+    // Segment 4: Flügelspitze (550–600 mm)
+    translate([0, -(seg_boundary(3) + 3 * explode), 0])
+        rotate([90, 0, 0])
+            half_wing_segment(seg_boundary(3), seg_boundary(4));
 }
 
 // Rumpf-Platzhalter (einfacher Quader zur Orientierung)
@@ -61,14 +79,14 @@ module baron() {
         place_half_wing();
 
     // --- Flügel rechts (gespiegelt) ---
-    color("Khaki", 0.9)
-    translate([wing_offset_x, 0, wing_offset_z])
-        mirror([0, 1, 0])
-            place_half_wing();
+    // color("Khaki", 0.9)
+    // translate([wing_offset_x, 0, wing_offset_z])
+    //    mirror([0, 1, 0])
+    //        place_half_wing();
 
     // --- Rumpf (Platzhalter) ---
-    color("Gold", 0.3)
-        fuselage_placeholder();
+    //color("Gold", 0.3)
+    //    fuselage_placeholder();
 
     // --- Leitwerk ---
     // color("Khaki", 0.9)
