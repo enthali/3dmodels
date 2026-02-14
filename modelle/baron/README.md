@@ -39,9 +39,14 @@ Das Modell wird automatisch in druckbare Segmente aufgeteilt:
 
 ## Dateien
 
-| Datei | Beschreibung |
+| Datei / Ordner | Beschreibung |
 |---|---|
-| `baron.scad` | Hauptdatei mit allen Modulen und Parametern |
+| `elliptic_wing.scad` | Hauptdesign – elliptischer Flügel (NACA 4415, DC-3-Planform) |
+| `assembly.scad` | Gesamtansicht (beide Halbflügel + Rumpf-Platzhalter) |
+| `calc_spar.py` | Hilfsskript für Holm-Berechnung |
+| `print_segments/` | Druckfertige Flügelsegmente (6× .scad + STLs) |
+| `legacy/` | Ältere Entwürfe (Original-Baron, einfaches Rippensegment) |
+| `test_grooves.scad` | Test/Debug für Filament-Rillen |
 
 ## Druckeinstellungen (empfohlen)
 
