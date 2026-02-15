@@ -76,7 +76,7 @@ module place_half_wing() {
 // Rumpf-Platzhalter (einfacher Quader zur Orientierung)
 module fuselage_placeholder() {
     translate([0, -fuselage_width/2, 0])
-        cube([fuselage_length, fuselage_width, wing_offset_z + 30]);
+        cube([fuselage_length, fuselage_width, fuselage_width]);
 }
 
 // ============================================================

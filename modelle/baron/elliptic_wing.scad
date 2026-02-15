@@ -66,7 +66,7 @@ function seg_boundary(i) =
     1 * _seg_unit, 
     2 * _seg_unit - aileron_gap, 
     3 * _seg_unit, 
-    4 * _seg_unit + aileron_gap, 
+    4 * _seg_unit + aileron_gap/2, 
     half_span][i];
 
 // === Funktionen ===
