@@ -28,7 +28,7 @@ steg_w_root     = 7;                   // [mm] Stegbreite an der Wurzel (skalier
 min_hole_chord  = 30;                  // [mm] Chord unter dem keine Löcher mehr
 
 // --- V-Form ---
-v_angle         = 0;                   // [°] V-Form (0 = deaktiviert)
+v_angle         = 3;                   // [°] V-Form (0 = deaktiviert)
 
 // --- Schränkung (Washout) ---
 washout         = 3;                   // [°] max. Schränkung am Tip
