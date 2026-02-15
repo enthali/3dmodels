@@ -38,8 +38,7 @@ washout_start   = 0;                   // [mm] Beginn der Schränkung
 sweep_ref       = 0.30;               // 30% chord – Referenzlinie
 
 // --- Querruder (Aileron) ---
-aileron_y1_pct    = 0.55;             // Beginn (% Halbspannweite)
-aileron_y2_pct    = 0.91;             // Ende (% Halbspannweite)
+// Beginn/Ende aus Segment-Raster abgeleitet (2× bzw. 4× _seg_unit)
 aileron_hinge_pct = 0.79;             // Scharnier-Position (% chord)
 aileron_gap       = 0.8;              // [mm] Spalt für Ruderbewegung
 aileron_closure_w = 0.4;              // [mm] Abschlussrippe (2 Druckschichten)
@@ -52,8 +51,23 @@ groove_min_chord = 2 * groove_inset;  // [mm] Nuten nur bei chord ≥ 80mm
 $fn = $preview ? 24 : 64;
 
 // === Abgeleitete Werte ===
-aileron_y1 = aileron_y1_pct * half_span;
-aileron_y2 = aileron_y2_pct * half_span;
+
+// Segment-Raster: 1:1:1:1:0.5 → 4.5 Teile auf half_span, auf Layer gerundet
+_seg_unit = round(half_span / 4.5 / step) * step;  // ~133.4mm
+
+// Querruder-Grenzen aus Segment-Raster
+aileron_y1 = 2 * _seg_unit;    // Beginn bei Segment 3
+aileron_y2 = 4 * _seg_unit;    // Ende bei Segment 5
+
+// Segment-Grenzen [mm] (Index 0–5)
+// Seg2 endet vor dem Aileron-Gap, Seg4 beginnt nach dem Aileron-Gap
+function seg_boundary(i) =
+    [0, 
+    1 * _seg_unit, 
+    2 * _seg_unit - aileron_gap, 
+    3 * _seg_unit, 
+    4 * _seg_unit + aileron_gap, 
+    half_span][i];
 
 // === Funktionen ===
 
@@ -191,10 +205,6 @@ module _bevel_wall_2d(y, offset = 0) {
                     square([wall, 2 * big]);
     }
 }
-
-// Segment-Grenzen [mm] (Index 0–4)
-function seg_boundary(i) =
-    [0, 180, aileron_y1 - aileron_gap, aileron_y2 + aileron_gap/2, half_span][i];
 
 // === Kreuzrippen: X-Positionen bei Spannweite y ===
 // Gibt eine Liste von X-Mittelpunkten zurück, an denen Rippenstreifen
@@ -382,9 +392,9 @@ module wing_segment(z_start, z_end) {
         wing(z_start, z_end);
 }
 
-module aileron_part() {
-    translate([0, 0, -(aileron_y1 - aileron_gap)])
-        aileron();
+module aileron_part(z_start = aileron_y1 - aileron_gap, z_end = aileron_y2 + aileron_gap) {
+    translate([0, 0, -z_start])
+        aileron(z_start, z_end);
 }
 
 // === Vorschau ===

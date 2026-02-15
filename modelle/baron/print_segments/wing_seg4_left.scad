@@ -1,5 +1,4 @@
-// wing_seg4_left.scad – Flügelspitze, linker Halbflügel
-// Spannweite Querruder-Ende bis Tip
+// wing_seg4_left.scad – Querruder-Ende bis Randbogen, linker Halbflügel
 
 use <../elliptic_wing.scad>
 
