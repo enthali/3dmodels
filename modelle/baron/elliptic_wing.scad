@@ -202,7 +202,8 @@ function seg_boundary(i) =
 // Rippen verlaufen von z=0 schräg nach außen, Abstand rib_spacing entlang Z.
 
 // Scheinbare Streifenbreite im Schnitt (Rippe steht schräg zur Scheibe)
-rib_apparent_w = rib_wall / cos(rib_angle);
+// rib_wall ist die gewünschte Breite im Slice (= was der Slicer sieht)
+rib_apparent_w = rib_wall;
 
 function _rib_x_positions(y, angle, offset = 0) =
     let(
