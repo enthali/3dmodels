@@ -95,6 +95,7 @@ module place_half_tailplane() {
 // ============================================================
 
 module baron() {
+/*
     // --- Flügel links ---
     color("Red", 0.8)
     translate([wing_offset_x, 0, wing_offset_z])
@@ -111,7 +112,7 @@ module baron() {
     // --- Rumpf (Platzhalter) ---
     color("Gold", 0.3)
         fuselage_baron();
-
+*/
     // --- Höhenleitwerk links ---
     color("Khaki", 0.85)
     translate([tail_offset_x, 0, tail_offset_z])

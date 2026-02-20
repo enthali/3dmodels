@@ -6,71 +6,8 @@ use <../../lib/airfoil.scad>
 use <../../lib/grooves.scad>
 
 // === Parameter ===
-
-// --- Profil ---
-wing_naca       = is_undef(wing_naca) ? [0.04, 0.4, 0.15] : wing_naca;  // NACA 4415
-chord_root      = is_undef(chord_root) ? 180 : chord_root;               // [mm] Wurzeltiefe
-half_span       = is_undef(half_span) ? 600 : half_span;                 // [mm] Halbspannweite (60cm)
-step            = is_undef(step) ? ($preview ? 10 : 0.2) : step;         // [mm] Slice-Dicke (= Layer-Höhe)
-tip_min         = is_undef(tip_min) ? 5 : tip_min;                       // [mm] minimale Profiltiefe an Spitze
-
-// --- Wandstärken ---
-wall            = is_undef(wall) ? 0.4 : wall;           // [mm] Hüllenwandstärke (1× Düse)
-rib_wall        = is_undef(rib_wall) ? 0.8 : rib_wall;   // [mm] Rippenstärke (2× Düse)
-
-// --- Rippen ---
-rib_angle       = is_undef(rib_angle) ? 45 : rib_angle;                 // [°] Winkel der Kreuzrippen
-rib_spacing     = is_undef(rib_spacing) ? 40 : rib_spacing;             // [mm] Abstand zwischen Rippen
-rib_inset_root  = is_undef(rib_inset_root) ? 5 : rib_inset_root;        // [mm] Erleichterungsloch-Abstand zur Hülle (Wurzel)
-rib_inset_min   = is_undef(rib_inset_min) ? 2 : rib_inset_min;          // [mm] Minimum-Rand (darunter Rippe massiv)
-rib_inset_r     = is_undef(rib_inset_r) ? 1 : rib_inset_r;              // [mm] Verrundung der Löcher
-steg_w_root     = is_undef(steg_w_root) ? 7 : steg_w_root;              // [mm] Stegbreite an der Wurzel (skaliert)
-min_hole_chord  = is_undef(min_hole_chord) ? 30 : min_hole_chord;       // [mm] Chord unter dem keine Löcher mehr
-
-// --- V-Form ---
-v_angle         = is_undef(v_angle) ? 3 : v_angle;  // [°] V-Form (0 = deaktiviert)
-
-// --- Schränkung (Washout) ---
-washout         = is_undef(washout) ? 3 : washout;                // [°] max. Schränkung am Tip
-washout_start   = is_undef(washout_start) ? 0 : washout_start;    // [mm] Beginn der Schränkung
-
-// --- Pfeilung ---
-sweep_ref       = is_undef(sweep_ref) ? 0.30 : sweep_ref;         // 30% chord – Referenzlinie
-
-// --- Querruder/Höhenruder (Control Surface) ---
-// Standard: Beginn/Ende aus Segment-Raster (2× bzw. 4× _seg_unit), kann überschrieben werden.
-aileron_hinge_pct = is_undef(aileron_hinge_pct) ? 0.79 : aileron_hinge_pct;  // Scharnier-Position (% chord)
-aileron_gap       = is_undef(aileron_gap) ? 0.8 : aileron_gap;                // [mm] Spalt für Ruderbewegung
-aileron_closure_w = is_undef(aileron_closure_w) ? 0.4 : aileron_closure_w;    // [mm] Abschlussrippe (2 Druckschichten)
-aileron_bevel     = is_undef(aileron_bevel) ? 30 : aileron_bevel;              // [°] Keilwinkel an der Scharnierkante
-
-// --- Filament-Nuten ---
-groove_inset     = is_undef(groove_inset) ? 40 : groove_inset;      // [mm] Abstand Nut von Nase/Endleiste
-groove_min_chord = is_undef(groove_min_chord) ? 2 * groove_inset : groove_min_chord;  // [mm] Nuten nur bei chord ≥ 80mm
-
-$fn = is_undef($fn) ? ($preview ? 24 : 64) : $fn;
-
-show_preview = is_undef(show_preview) ? true : show_preview;
-
-// === Abgeleitete Werte ===
-
-// Segment-Raster: 1:1:1:1:0.5 → 4.5 Teile auf half_span, auf Layer gerundet
-_seg_unit = is_undef(_seg_unit) ? round(half_span / 4.5 / step) * step : _seg_unit;  // ~133.4mm
-
-// Querruder/Höhenruder-Grenzen (optional überschreibbar)
-aileron_y1 = is_undef(aileron_y1) ? 2 * _seg_unit : aileron_y1;  // Beginn
-aileron_y2 = is_undef(aileron_y2) ? 4 * _seg_unit : aileron_y2;  // Ende
-
-// Segment-Grenzen [mm] (optional überschreibbar)
-// Standard (Index 0–5): Seg2 endet vor dem Aileron-Gap, Seg4 beginnt nach dem Aileron-Gap
-segment_bounds = is_undef(segment_bounds)
-    ? [0,
-       1 * _seg_unit,
-       2 * _seg_unit - aileron_gap,
-       3 * _seg_unit,
-       4 * _seg_unit + aileron_gap/2,
-       half_span]
-    : segment_bounds;
+// Diese Datei ist ein Geometrie-Kern.
+// Die Parameter werden von aufrufenden Dateien gesetzt (z.B. `wing.scad`, `tailplane.scad`).
 
 function seg_boundary(i) = segment_bounds[i];
 
@@ -92,12 +29,13 @@ function twist(y) =
     washout * (y - washout_start) / (half_span - washout_start);
 
 // Scharnier-X (absolute Koordinate) als lineare Funktion der Spannweite
+// Definiert über inneren Referenzpunkt (aileron_y1 + aileron_hinge_pct)
+// und Sweep-Winkel der Scharnierachse.
 function hinge_x(y) =
     let(
-        hx1 = le_offset(aileron_y1) + aileron_hinge_pct * elliptic_chord(aileron_y1),
-        hx2 = le_offset(aileron_y2) + aileron_hinge_pct * elliptic_chord(aileron_y2)
+        hx_root = le_offset(aileron_y1) + aileron_hinge_pct * elliptic_chord(aileron_y1)
     )
-    hx1 + (hx2 - hx1) * (y - aileron_y1) / (aileron_y2 - aileron_y1);
+    hx_root + tan(aileron_hinge_sweep) * (y - aileron_y1);
 
 // Scharnier-X in lokalen Profilkoordinaten (relativ zur Vorderkante)
 // Nutzt die gerade absolute Linie hinge_x(), umgerechnet in lokale Coords
@@ -254,10 +192,7 @@ module slice_ribs_2d(y) {
 // Profil bei Spannweite y (massiv, mit Grooves wo chord >= 80mm)
 module slice_profile_2d(y) {
     c = elliptic_chord(y);
-    if (c >= groove_min_chord)
-        airfoil_grooved_2d(wing_naca, c);
-    else
-        airfoil_2d(wing_naca, c);
+    airfoil_grooved_2d(wing_naca, c, groove_inset = groove_inset);
 }
 
 // Hülle bei Spannweite y (wall dick)
@@ -295,6 +230,7 @@ module slice_rib_holes_2d(y) {
     steg_w = steg_w_root * c / chord_root;
     nose_start = 13 * c / chord_root;
     inset = max(rib_inset_min, rib_inset_root * c / chord_root);
+    groove_min_chord = 2 * groove_inset;
 
     if (c >= groove_min_chord) {
         s1 = groove_inset;
@@ -402,6 +338,52 @@ module aileron_part(z_start = aileron_y1 - aileron_gap, z_end = aileron_y2 + ail
         aileron(z_start, z_end);
 }
 
-// === Vorschau ===
-if (show_preview)
+// === Optionale lokale Vorschau (nur für Selbsttest) ===
+module elliptic_wing_preview() {
+    $fn = $preview ? 24 : 64;                         // Kreisauflösung Preview/Render
+
+    wing_naca       = [0.04, 0.4, 0.15];             // Profil: NACA 4415
+    chord_root      = 180;                            // Wurzeltiefe [mm]
+    half_span       = 600;                            // Halbspannweite [mm]
+    step            = $preview ? 5 : 0.2;            // Slice-Dicke [mm]
+    tip_min         = 5;                              // minimale Tiefe am Tip [mm]
+
+    wall            = 0.4;                            // Hüllenwandstärke [mm]
+    rib_wall        = 0.8;                            // Rippenstärke [mm]
+    rib_angle       = 45;                             // Rippenwinkel [°]
+    rib_spacing     = 40;                             // Rippenabstand [mm]
+    rib_inset_root  = 5;                              // Lochrand an Wurzel [mm]
+    rib_inset_min   = 2;                              // minimaler Lochrand [mm]
+    rib_inset_r     = 1;                              // Lochverrundung [mm]
+    steg_w_root     = 7;                              // Stegbreite an Wurzel [mm]
+    min_hole_chord  = 30;                             // unterhalb keine Erleichterungslöcher [mm]
+
+    v_angle         = 3;                              // V-Form [°]
+    washout         = 3;                              // Schränkung am Tip [°]
+    washout_start   = 0;                              // Beginn Schränkung [mm]
+    sweep_ref       = 0.30;                           // Referenzlinie als Chord-Anteil
+
+    aileron_hinge_pct = 0.79;                         // Scharnierposition am Innenpunkt als Chord-Anteil
+    aileron_hinge_sweep = -8.2;                       // Scharnier-Sweep [°], 0° = quer zur Flugrichtung
+    aileron_gap       = 0.8;                          // Ruderspalt [mm]
+    aileron_bevel     = 30;                           // Keilwinkel an Scharnierkante [°]
+
+    groove_inset      = 40;                           // Nutabstand von Nase/Endleiste [mm]
+
+    _seg_unit         = round(half_span / 4.5 / step) * step;  // Basis-Segmentlänge [mm]
+    aileron_y1        = 2 * _seg_unit;                // Ruderbeginn entlang Spannweite [mm]
+    aileron_y2        = 4 * _seg_unit;                // Ruderende entlang Spannweite [mm]
+    segment_bounds    = [
+        0,                                             // Segment 1 Start
+        1 * _seg_unit,                                 // Segmentgrenze 1
+        2 * _seg_unit - aileron_gap,                   // vor Ruderspalt
+        3 * _seg_unit,                                 // Segmentgrenze 3
+        4 * _seg_unit + aileron_gap/2,                 // nach Ruderspalt
+        half_span                                       // Tip/letzte Grenze
+    ];
+
     wing();
+}
+
+// Für direkten Test in dieser Datei einkommentieren:
+// elliptic_wing_preview();

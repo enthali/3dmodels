@@ -5,11 +5,9 @@
 
 use <airfoil.scad>
 
-// === Parameter (können vom Hauptprojekt überschrieben werden) ===
-groove_d        = 1.75;   // [mm] Nutbreite = Filament-∅ (H-Passung, Filament meist <1.75)
-groove_sink     = 1.80;   // [mm] Gesamttiefe der U-Nut (Filament versenkt, kaum Überstand)
-groove_inset    = 40;     // [mm] Abstand von Nase bzw. Endleiste
-groove_min_chord = 2 * groove_inset;  // Nuten nur bei chord ≥ 2×inset
+// === Groove-Standardwerte ===
+// Nur `groove_inset` wird extern übergeben.
+// Nutgeometrie ist bewusst fix für konsistente Filament-Passung.
 
 // === NACA Oberflächen-Funktionen ===
 // Berechnet Y-Koordinate der Profiloberfläche an Position x_abs [mm]
@@ -35,7 +33,7 @@ function airfoil_y_lower(x_abs, naca, chord) =
 
 // U-förmige Nut (2D): gerade Wände + Halbkreis am Boden
 // Öffnung nach oben (Y+), Gesamttiefe = groove_sink
-module groove_u_2d() {
+module groove_u_2d(groove_d = 1.75, groove_sink = 1.80) {
     r = groove_d / 2;
     wall_h = max(0, groove_sink - r);  // Wandhöhe über dem Kreiszentrum
     // Halbkreis am Boden (Zentrum bei -wall_h)
@@ -49,7 +47,8 @@ module groove_u_2d() {
 
 // 2D-Profil mit 4 Filament-U-Nuten (vorne/hinten × oben/unten)
 // Nut-Öffnung zeigt nach außen, Filament sitzt fast bündig
-module airfoil_grooved_2d(naca, chord, n = 40) {
+module airfoil_grooved_2d(naca, chord, n = 40, groove_inset = 40) {
+    groove_min_chord = 2 * groove_inset;
     if (chord >= groove_min_chord) {
         x_front = groove_inset;
         x_back  = chord - groove_inset;
