@@ -8,7 +8,7 @@ half_span         = 220;            // [mm] => 440 mm Gesamtspannweite
 step              = $preview ? 5 : 0.2;
 tip_min           = 5;
 
-wall              = 0.4;
+wall              = 0.45;
 rib_wall          = 0.8;
 rib_angle         = 45;
 rib_spacing       = 35;
@@ -32,8 +32,12 @@ aileron_y1        = 0;
 aileron_y2        = 200;
 
 // 2 Segmente: 0–200 (mit Ruder), 200–220 (Randbogen)
-segment_bounds    = [0, aileron_y2 - aileron_gap, half_span];
-groove_inset      = 40;
+segment_bounds    = [
+    0, 
+    aileron_y2 + aileron_gap/2, 
+    half_span
+    ];
+groove_inset      = 45;
 $fn               = $preview ? 24 : 64;
 
 show_preview      = false;
@@ -41,20 +45,21 @@ show_preview      = false;
 include <elliptic_wing.scad>
 
 // --- Komfort-Wrapper ---
-module tailplane(y_start = 0, y_end = half_span) {
-    wing(y_start, y_end);
+// layer: "all" (Preview), "shell" (Außenhülle), "ribs" (Inneres)
+module tailplane(y_start = 0, y_end = half_span, layer = "all") {
+    wing(y_start, y_end, layer);
 }
 
-module elevator(y_start = 0, y_end = aileron_y2 + aileron_gap) {
-    aileron(y_start, y_end);
+module elevator(y_start = 0, y_end = aileron_y2 + aileron_gap, layer = "all") {
+    aileron(y_start, y_end, layer);
 }
 
-module tail_segment(index) {
-    wing_segment(tail_seg_boundary(index), tail_seg_boundary(index + 1));
+module tail_segment(index, layer = "all") {
+    wing_segment(tail_seg_boundary(index), tail_seg_boundary(index + 1), layer);
 }
 
-module elevator_segment(y_start = 0, y_end = aileron_y2 + aileron_gap) {
-    aileron_part(y_start, y_end);
+module elevator_segment(y_start = 0, y_end = aileron_y2 + aileron_gap, layer = "all") {
+    aileron_part(y_start, y_end, layer);
 }
 
 function tail_seg_boundary(i) = segment_bounds[i];

@@ -52,6 +52,33 @@
             "washout": "0",
             "washout_start": "0",
             "wing_naca": "[0, 0, 0.09]"
+        },
+        "New set 3": {
+            "aileron_bevel": "30",
+            "aileron_gap": "0.80000000000000004",
+            "aileron_hinge_pct": "0.67000000000000004",
+            "aileron_hinge_sweep": "0",
+            "aileron_y1": "0",
+            "aileron_y2": "200",
+            "chord_root": "120",
+            "groove_inset": "45",
+            "half_span": "220",
+            "min_hole_chord": "30",
+            "rib_angle": "45",
+            "rib_inset_min": "2",
+            "rib_inset_r": "1",
+            "rib_inset_root": "5",
+            "rib_spacing": "35",
+            "rib_wall": "0.80000000000000004",
+            "show_preview": "false",
+            "steg_w_root": "7",
+            "sweep_ref": "0.5",
+            "tip_min": "5",
+            "v_angle": "0",
+            "wall": "0.40000000000000002",
+            "washout": "0",
+            "washout_start": "0",
+            "wing_naca": "[0, 0, 0.09]"
         }
     }
 }

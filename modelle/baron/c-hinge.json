@@ -1,0 +1,15 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "New set 1": {
+            "$fn": "64",
+            "clearance": "0.20000000000000001",
+            "fin_t": "2",
+            "h": "40",
+            "od": "8",
+            "open_a": "220",
+            "open_dir": "0",
+            "wall": "1.2"
+        }
+    }
+}

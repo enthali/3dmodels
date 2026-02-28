@@ -158,6 +158,12 @@ module _bevel_wall_2d(y, offset = 0) {
 // rib_wall ist die gewünschte Breite im Slice (= was der Slicer sieht)
 rib_apparent_w = rib_wall;
 
+// Luftspalt zwischen Außenhülle und Rippen/Stegen [mm]
+// Slicer druckt Hülle als durchgehende Perimeter-Schleife.
+// Spalt nach dem Druck mit dünnflüssigem Sekundenkleber versiegeln
+// (zieht sich durch Kapillarwirkung in den Spalt).
+rib_shell_gap = 0.01;
+
 function _rib_x_positions(y, angle, offset = 0) =
     let(
         dx_per_z = tan(angle),
@@ -171,14 +177,16 @@ function _rib_x_positions(y, angle, offset = 0) =
         if (x > -chord_root && x < 2 * chord_root) x
     ];
 
-// 2D-Rippenstreifen bei Spannweite y (ohne Löcher, intersected mit Profil)
-// Zweite Richtung um rib_spacing/2 versetzt → Rippen alle 20mm an der Nase
+// 2D-Rippenstreifen bei Spannweite y (ohne Löcher)
+// Rippen enden mit rib_shell_gap Abstand zur Hüllen-Innenkante
+// → Slicer druckt Außenhülle durchgängig ohne Start/Stop-Löcher
 module slice_ribs_2d(y) {
     c = elliptic_chord(y);
     for (params = [[rib_angle, 0], [-rib_angle, rib_spacing/2]]) {
         positions = _rib_x_positions(y, params[0], params[1]);
         intersection() {
-            slice_profile_2d(y);
+            offset(r = -(wall + rib_shell_gap))
+                slice_profile_2d(y);
             for (x = positions)
                 translate([x - rib_apparent_w/2, -30])
                     square([rib_apparent_w, 60]);
@@ -207,6 +215,7 @@ module slice_shell_2d(y) {
 }
 
 // Erleichterungsloch: offset(+r) offset(-r) → abgerundete Ecken
+// Löcher konsistent mit rib_shell_gap
 module _hole_2d(naca, chord, x_start, x_end, inset) {
     intersection() {
         translate([x_start, -30])
@@ -214,7 +223,8 @@ module _hole_2d(naca, chord, x_start, x_end, inset) {
         offset(r = rib_inset_r) offset(r = -rib_inset_r)
             intersection() {
                 offset(r = -inset)
-                    airfoil_2d(naca, chord);
+                    offset(r = -(wall + rib_shell_gap))
+                        airfoil_2d(naca, chord);
                 translate([x_start, -30])
                     square([x_end - x_start, 60]);
             }
@@ -246,51 +256,79 @@ module slice_rib_holes_2d(y) {
 }
 
 // Basis-Slice: Hülle + Rippen mit Löchern (ohne Aileron-Logik)
-module _slice_base_2d(y) {
-    union() {
+// layer: "all" = komplett, "shell" = nur Hülle, "ribs" = nur Inneres
+module _slice_base_2d(y, layer = "all") {
+    if (layer == "shell") {
         slice_shell_2d(y);
+    } else if (layer == "ribs") {
         difference() {
             slice_ribs_2d(y);
             slice_rib_holes_2d(y);
+        }
+    } else {
+        // "all" – klassisch vereinigt (für Preview / Kompatibilität)
+        union() {
+            slice_shell_2d(y);
+            difference() {
+                slice_ribs_2d(y);
+                slice_rib_holes_2d(y);
+            }
         }
     }
 }
 
 // Komplette Scheibe mit Aileron-Logik
+// layer: "all", "shell", "ribs" → wird an _slice_base_2d durchgereicht
 // gap/2 Clearance auf jeder Seite → zusammen aileron_gap Spalt
-module slice_2d(y, part = "wing") {
+module slice_2d(y, part = "wing", layer = "all") {
     zone = aileron_zone(y);
     g = aileron_gap / 2;
 
     if (part == "wing") {
         // === Flügel-Teil ===
         if (zone == "none") {
-            _slice_base_2d(y);
+            _slice_base_2d(y, layer);
         } else if (zone == "closure_wing") {
             // Abschlusswand Flügel: Basis + massiv hinter Scharnier + Rückwand
-            union() {
-                _slice_base_2d(y);
-                _clip_rear_vertical_2d(y)
-                    slice_profile_2d(y);
-                _hinge_wall_2d(y);
+            if (layer == "ribs") {
+                _slice_base_2d(y, layer);
+            } else {
+                union() {
+                    _slice_base_2d(y, layer);
+                    _clip_rear_vertical_2d(y)
+                        slice_profile_2d(y);
+                    _hinge_wall_2d(y);
+                }
             }
         } else if (zone == "gap" || zone == "aileron" || zone == "closure_aileron") {
             // Vor Scharnier (mit Spalt) + Rückwand
-            union() {
-                _clip_front_2d(y, g) _slice_base_2d(y);
-                _hinge_wall_2d(y);
+            if (layer == "ribs") {
+                _clip_front_2d(y, g) _slice_base_2d(y, layer);
+            } else {
+                union() {
+                    _clip_front_2d(y, g) _slice_base_2d(y, layer);
+                    _hinge_wall_2d(y);
+                }
             }
         }
     } else {
         // === Querruder-Teil ===
         if (zone == "closure_aileron") {
             // Abschlusswand Ruder: massiv hinter Bevel (schräg, kein Spalt)
-            _clip_rear_bevel_2d(y ) slice_profile_2d(y);
+            if (layer == "ribs") {
+                // Closure ist immer massiv → gehört zur Shell
+            } else {
+                _clip_rear_bevel_2d(y ) slice_profile_2d(y);
+            }
         } else if (zone == "aileron") {
             // Querruder: Basis hinter Keil-Linie (schräg, mit Spalt) + schräge Vorderwand
-            union() {
-                _clip_rear_bevel_2d(y ) _slice_base_2d(y);
-                _bevel_wall_2d(y);
+            if (layer == "ribs") {
+                _clip_rear_bevel_2d(y ) _slice_base_2d(y, layer);
+            } else {
+                union() {
+                    _clip_rear_bevel_2d(y ) _slice_base_2d(y, layer);
+                    _bevel_wall_2d(y);
+                }
             }
         }
         // zone == "none", "closure_wing", "gap" → nichts
@@ -298,7 +336,8 @@ module slice_2d(y, part = "wing") {
 }
 
 // === Flügel: Scheiben stapeln ===
-module wing(y_start = 0, y_end = half_span) {
+// layer: "all" (default), "shell", "ribs"
+module wing(y_start = 0, y_end = half_span, layer = "all") {
     n = floor((y_end - y_start) / step);
     for (i = [0 : n - 1]) {
         y = y_start + i * step;
@@ -308,12 +347,12 @@ module wing(y_start = 0, y_end = half_span) {
                 translate([sweep_ref * c, 0])
                     rotate([0, 0, twist(y)])
                         translate([-sweep_ref * c, 0])
-                            slice_2d(y, "wing");
+                            slice_2d(y, "wing", layer);
     }
 }
 
 // === Querruder: Scheiben stapeln ===
-module aileron(y_start = aileron_y1 - aileron_gap, y_end = aileron_y2 + aileron_gap) {
+module aileron(y_start = aileron_y1 - aileron_gap, y_end = aileron_y2 + aileron_gap, layer = "all") {
     n = floor((y_end - y_start) / step);
     for (i = [0 : n - 1]) {
         y = y_start + i * step;
@@ -323,19 +362,20 @@ module aileron(y_start = aileron_y1 - aileron_gap, y_end = aileron_y2 + aileron_
                 translate([sweep_ref * c, 0])
                     rotate([0, 0, twist(y)])
                         translate([-sweep_ref * c, 0])
-                            slice_2d(y, "aileron");
+                            slice_2d(y, "aileron", layer);
     }
 }
 
 // === Segmente (druckfertig, auf Z=0 verschoben) ===
-module wing_segment(z_start, z_end) {
+// layer: "all" (default/Preview), "shell", "ribs" (für getrennte STL-Exports)
+module wing_segment(z_start, z_end, layer = "all") {
     translate([0, 0, -z_start])
-        wing(z_start, z_end);
+        wing(z_start, z_end, layer);
 }
 
-module aileron_part(z_start = aileron_y1 - aileron_gap, z_end = aileron_y2 + aileron_gap) {
+module aileron_part(z_start = aileron_y1 - aileron_gap, z_end = aileron_y2 + aileron_gap, layer = "all") {
     translate([0, 0, -z_start])
-        aileron(z_start, z_end);
+        aileron(z_start, z_end, layer);
 }
 
 // === Optionale lokale Vorschau (nur für Selbsttest) ===
